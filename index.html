@@ -126,7 +126,7 @@
 
         songs = data;
         renderSongList();
-        playBtn.disabled = songs.length > 0;
+        playBtn.disabled = songs.length === 0; // активна, если есть хотя бы 1 песня
         statusEl.textContent = `✅ Загружено ${songs.length} песен`;
       } catch (err) {
         console.error(err);
@@ -209,9 +209,7 @@
           alert('Сначала загрузите список песен!');
           return;
         }
-        const index = shuffleCheck.checked 
-          ? Math.floor(Math.random() * songs.length) 
-          : 0;
+        const index = Math.floor(Math.random() * songs.length); // всегда случайно при старте
         playSong(index);
       }
     }
@@ -227,22 +225,6 @@
 
     // Предзаполнение и автозагрузка (опционально)
     // loadSongs(); // раскомментировать, если хотите автозагрузку при открытии
-
-    // Активируем кнопку и назначаем действие ПОСЛЕ полной инициализации
-    window.addEventListener('DOMContentLoaded', () => {
-      const playBtn = document.getElementById('playBtn');
-      playBtn.disabled = false;
-      playBtn.textContent = '▶️ Сыграть случайную';
-      
-      playBtn.onclick = () => {
-        if (songs.length > 0) {
-          const index = Math.floor(Math.random() * songs.length);
-          playSong(index);
-        } else {
-          alert('Список песен пуст. Нажмите «Загрузить список песен».');
-        }
-      };
-    });    
   </script>
 </body>
 </html>
