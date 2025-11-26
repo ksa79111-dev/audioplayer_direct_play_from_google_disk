@@ -29,46 +29,32 @@
       margin: 1rem 0;
       transition: background 0.2s;
     }
-    button:hover {
-      background: #3367d6;
+    button:hover { background: #3367d6; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #status { margin-top: 1.5rem; font-size: 1.1rem; }
+    .controls {
+      margin-top: 1rem;
     }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    #status {
-      margin-top: 1.5rem;
-      font-size: 1.1rem;
-      min-height: 1.5em;
-    }
-    .progress {
-      width: 80%;
-      max-width: 400px;
-      height: 6px;
-      background: #eee;
-      border-radius: 3px;
-      margin: 1rem auto;
-      display: none;
-    }
-    .progress-bar {
-      height: 100%;
-      background: #4285f4;
-      border-radius: 3px;
-      width: 0%;
-      transition: width 0.1s;
+    .controls label {
+      margin: 0 0.5rem;
     }
   </style>
 </head>
 <body>
   <h1>🎧 Случайная песня</h1>
   <button id="playBtn">Сыграть случайную песню</button>
-  <div class="progress" id="progressContainer">
-    <div class="progress-bar" id="progressBar"></div>
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="shuffle" checked> Случайный порядок
+    </label>
+    <label>
+      <input type="checkbox" id="loop" checked> Повторять
+    </label>
   </div>
   <div id="status">Готово</div>
+  <audio id="player" style="display:none"></audio>
 
   <script>
-    // ——— СПИСОК ВАШИХ ПЕСЕН ———
     const songs = [
       { id: "1aVQDA7YIZ_9-x8XKc68wrDbgR-8SHTLI", name: "mix.mp3" },
       { id: "1Gsk4HO7GXi0o18z5bESw2Iqe8cJc4hmg", name: "Dan Balan - Lendo Calendo" },
@@ -76,114 +62,95 @@
       { id: "1-4cojYT8WyLgfRqcFON2LKqybWSCh4OL", name: "The Hardkiss - Make Up" }
     ];
 
-    let audioContext = null;
-    let currentSource = null;
+    let currentIndex = -1;
+    let isPlaying = false;
+    const player = document.getElementById('player');
+    const playBtn = document.getElementById('playBtn');
+    const statusEl = document.getElementById('status');
+    const shuffleCheck = document.getElementById('shuffle');
+    const loopCheck = document.getElementById('loop');
 
-    function updateProgress(percent) {
-      const bar = document.getElementById('progressBar');
-      bar.style.width = percent + '%';
+    // Настройка автоследующего трека
+    player.onended = () => {
+      if (loopCheck.checked) {
+        playNextSong();
+      } else {
+        stopPlayback();
+      }
+    };
+
+    player.onerror = () => {
+      statusEl.textContent = `❌ Ошибка воспроизведения: ${player.error?.message || 'неизвестно'}`;
+      stopPlayback();
+    };
+
+    function getRandomIndex() {
+      return Math.floor(Math.random() * songs.length);
     }
 
-    async function playRandomSong() {
-      const btn = document.getElementById('playBtn');
-      const status = document.getElementById('status');
-      const progressContainer = document.getElementById('progressContainer');
+    function getNextIndex() {
+      if (shuffleCheck.checked) {
+        let next;
+        do {
+          next = getRandomIndex();
+        } while (songs.length > 1 && next === currentIndex);
+        return next;
+      } else {
+        return (currentIndex + 1) % songs.length;
+      }
+    }
 
-      btn.disabled = true;
-      status.textContent = 'Выбор песни…';
-      progressContainer.style.display = 'block';
-      updateProgress(5);
-
-      // Случайный выбор
-      const song = songs[Math.floor(Math.random() * songs.length)];
-      status.textContent = `Загрузка: ${song.name}…`;
-
-      // ✅ Прямая ссылка + корректное кодирование
+    function playSong(index) {
+      if (index < 0 || index >= songs.length) return;
+      
+      currentIndex = index;
+      const song = songs[index];
+      
+      // ✅ Используем прокси с корректным кодированием
       const directUrl = `https://drive.google.com/uc?export=download&id=${song.id}&confirm=t`;
       const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(directUrl);
+      
+      player.src = proxyUrl;
+      statusEl.textContent = `▶️ Загрузка: ${song.name}…`;
+      
+      // play() после назначения src — разрешено в рамках сессии
+      player.play()
+        .then(() => {
+          statusEl.textContent = `▶️ Играет: ${song.name}`;
+          playBtn.textContent = 'Остановить';
+          isPlaying = true;
+        })
+        .catch(err => {
+          statusEl.textContent = `❌ Не удалось проиграть: ${song.name} (${err.name})`;
+          console.error(err);
+        });
+    }
 
-      updateProgress(20);
+    function playNextSong() {
+      const nextIndex = getNextIndex();
+      playSong(nextIndex);
+    }
 
-      try {
-        // Загрузка через прокси
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        updateProgress(40);
-
-        // Читаем как массив байт с прогрессом
-        const contentLength = +response.headers.get('content-length') || 1;
-        const reader = response.body.getReader();
-        const chunks = [];
-        let receivedLength = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          receivedLength += value.length;
-          const percent = 40 + Math.min(50, Math.round((receivedLength / contentLength) * 50));
-          updateProgress(percent);
-        }
-
-        const arrayBuffer = new Uint8Array(receivedLength);
-        let offset = 0;
-        for (const chunk of chunks) {
-          arrayBuffer.set(chunk, offset);
-          offset += chunk.length;
-        }
-
-        updateProgress(90);
-
-        // ——— Воспроизведение через Web Audio API ———
-        if (audioContext) {
-          try { audioContext.close(); } catch (e) {}
-        }
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        const buffer = await audioContext.decodeAudioData(arrayBuffer.buffer);
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-
-        // Останавливаем предыдущий, если был
-        if (currentSource) currentSource.stop();
-        currentSource = source;
-
-        // ▶️ Автоплей — разрешён после клика
-        await audioContext.resume();
-        source.start(0);
-
-        updateProgress(100);
-        status.innerHTML = `▶️ <strong>Играет:</strong> ${song.name}`;
-        btn.textContent = 'Остановить';
-        btn.disabled = false;
-        btn.onclick = stopPlayback;
-
-      } catch (err) {
-        console.error('Playback error:', err);
-        status.textContent = `❌ Не удалось проиграть: ${err.message || 'неизвестная ошибка'}`;
-        btn.disabled = false;
-        btn.textContent = 'Сыграть случайную песню';
-        btn.onclick = playRandomSong;
-        progressContainer.style.display = 'none';
+    function startPlayback() {
+      if (isPlaying) {
+        // Остановить
+        stopPlayback();
+      } else {
+        // Начать: случайный трек
+        const index = shuffleCheck.checked ? getRandomIndex() : 0;
+        playSong(index);
       }
     }
 
     function stopPlayback() {
-      if (audioContext) {
-        audioContext.close().catch(() => {});
-        audioContext = null;
-        currentSource = null;
-      }
-      document.getElementById('playBtn').textContent = 'Сыграть случайную песню';
-      document.getElementById('playBtn').onclick = playRandomSong;
-      document.getElementById('status').textContent = 'Остановлено';
-      document.getElementById('progressContainer').style.display = 'none';
+      player.pause();
+      player.src = '';
+      isPlaying = false;
+      playBtn.textContent = 'Сыграть случайную песню';
+      statusEl.textContent = 'Остановлено';
     }
 
-    // Назначаем обработчик
-    document.getElementById('playBtn').addEventListener('click', playRandomSong);
+    playBtn.addEventListener('click', startPlayback);
   </script>
 </body>
 </html>
