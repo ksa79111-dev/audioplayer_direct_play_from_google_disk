@@ -1,32 +1,76 @@
-<button id="playBtn">Сыграть случайную песню</button>
-<div id="player"></div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Случайная песня</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      font-size: 1.1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 1rem 0;
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    #player {
+      margin-top: 1.5rem;
+    }
+    iframe {
+      border: none;
+      width: 100%;
+      max-width: 640px;
+      height: 120px;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎧 Случайная песня</h1>
+  <button id="playBtn">Сыграть случайную песню</button>
+  <div id="player"></div>
 
-<script>
-const songs = [
-  { id: "1aVQDA7YIZ_9-x8XKc68wrDbgR-8SHTLI", name: "mix.mp3" },
-  { id: "1Gsk4HO7GXi0o18z5bESw2Iqe8cJc4hmg", name: "Dan Balan - Lendo Calendo" },
-  { id: "1JA84mlS_3I8PGwOXeZa3l8XqYiIGdmpn", name: "DVBBS - Tsunami" },
-  { id: "1-4cojYT8WyLgfRqcFON2LKqybWSCh4OL", name: "The Hardkiss - Make Up" }
-];
+  <script>
+    // Список ваших песен (скопирован из JSON)
+    const songs = [
+      { id: "1aVQDA7YIZ_9-x8XKc68wrDbgR-8SHTLI", name: "mix.mp3" },
+      { id: "1Gsk4HO7GXi0o18z5bESw2Iqe8cJc4hmg", name: "Dan Balan - Lendo Calendo" },
+      { id: "1JA84mlS_3I8PGwOXeZa3l8XqYiIGdmpn", name: "DVBBS - Tsunami" },
+      { id: "1-4cojYT8WyLgfRqcFON2LKqybWSCh4OL", name: "The Hardkiss - Make Up" }
+    ];
 
-function playRandomSong() {
-  const song = songs[Math.floor(Math.random() * songs.length)];
-  
-  // ✅ Формируем ссылку на preview
-  const previewUrl = `https://drive.google.com/file/d/${song.id}/preview`;
-  
-  // Встраиваем iframe
-  const iframe = document.createElement('iframe');
-  iframe.src = previewUrl;
-  iframe.width = "100%";
-  iframe.height = "120"; // компактный плеер
-  iframe.setAttribute('allow', 'autoplay');
-  iframe.setAttribute('frameborder', '0');
-  
-  const playerDiv = document.getElementById('player');
-  playerDiv.innerHTML = `<p>Играет: ${song.name}</p>`;
-  playerDiv.appendChild(iframe);
-}
+    function playRandomSong() {
+      const song = songs[Math.floor(Math.random() * songs.length)];
+      
+      // ✅ Важно: /preview + autoplay=1 + loop=0
+      const url = `https://drive.google.com/file/d/${song.id}/preview?autoplay=1&loop=0`;
+      
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.setAttribute('allow', 'autoplay');
+      iframe.setAttribute('frameborder', '0');
+      
+      const playerDiv = document.getElementById('player');
+      playerDiv.innerHTML = `<p><strong>Играет:</strong> ${song.name}</p>`;
+      playerDiv.appendChild(iframe);
+    }
 
-document.getElementById('playBtn').onclick = playRandomSong;
-</script>
+    document.getElementById('playBtn').addEventListener('click', playRandomSong);
+  </script>
+</body>
+</html>
