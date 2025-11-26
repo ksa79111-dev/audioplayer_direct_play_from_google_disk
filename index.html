@@ -3,50 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Случайная песня</title>
+  <title>🎧 Случайная песня</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      max-width: 800px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 700px;
       margin: 2rem auto;
       padding: 0 1rem;
       text-align: center;
+      background: #fafafa;
+      color: #333;
     }
     h1 {
-      color: #333;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
     }
     button {
       background: #4285f4;
       color: white;
       border: none;
-      padding: 0.75rem 1.5rem;
+      padding: 0.8rem 1.8rem;
       font-size: 1.1rem;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
       margin: 1rem 0;
+      transition: background 0.2s;
     }
     button:hover {
       background: #3367d6;
     }
-    #player {
-      margin-top: 1.5rem;
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
-    iframe {
-      border: none;
-      width: 100%;
-      max-width: 640px;
-      height: 120px;
-      margin-top: 0.5rem;
+    #status {
+      margin-top: 1.5rem;
+      font-size: 1.1rem;
+      min-height: 1.5em;
+    }
+    .progress {
+      width: 80%;
+      max-width: 400px;
+      height: 6px;
+      background: #eee;
+      border-radius: 3px;
+      margin: 1rem auto;
+      display: none;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #4285f4;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s;
     }
   </style>
 </head>
 <body>
   <h1>🎧 Случайная песня</h1>
   <button id="playBtn">Сыграть случайную песню</button>
-  <div id="player"></div>
+  <div class="progress" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <div id="status">Готово</div>
 
   <script>
-    // Список ваших песен (скопирован из JSON)
+    // ——— СПИСОК ВАШИХ ПЕСЕН ———
     const songs = [
       { id: "1aVQDA7YIZ_9-x8XKc68wrDbgR-8SHTLI", name: "mix.mp3" },
       { id: "1Gsk4HO7GXi0o18z5bESw2Iqe8cJc4hmg", name: "Dan Balan - Lendo Calendo" },
@@ -54,22 +76,113 @@
       { id: "1-4cojYT8WyLgfRqcFON2LKqybWSCh4OL", name: "The Hardkiss - Make Up" }
     ];
 
-    function playRandomSong() {
-      const song = songs[Math.floor(Math.random() * songs.length)];
-      
-      // ✅ Важно: /preview + autoplay=1 + loop=0
-      const url = `https://drive.google.com/file/d/${song.id}/preview?autoplay=1&loop=0`;
-      
-      const iframe = document.createElement('iframe');
-      iframe.src = url;
-      iframe.setAttribute('allow', 'autoplay');
-      iframe.setAttribute('frameborder', '0');
-      
-      const playerDiv = document.getElementById('player');
-      playerDiv.innerHTML = `<p><strong>Играет:</strong> ${song.name}</p>`;
-      playerDiv.appendChild(iframe);
+    let audioContext = null;
+    let currentSource = null;
+
+    function updateProgress(percent) {
+      const bar = document.getElementById('progressBar');
+      bar.style.width = percent + '%';
     }
 
+    async function playRandomSong() {
+      const btn = document.getElementById('playBtn');
+      const status = document.getElementById('status');
+      const progressContainer = document.getElementById('progressContainer');
+
+      btn.disabled = true;
+      status.textContent = 'Выбор песни…';
+      progressContainer.style.display = 'block';
+      updateProgress(5);
+
+      // Случайный выбор
+      const song = songs[Math.floor(Math.random() * songs.length)];
+      status.textContent = `Загрузка: ${song.name}…`;
+
+      // ✅ Прямая ссылка + корректное кодирование
+      const directUrl = `https://drive.google.com/uc?export=download&id=${song.id}&confirm=t`;
+      const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(directUrl);
+
+      updateProgress(20);
+
+      try {
+        // Загрузка через прокси
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        updateProgress(40);
+
+        // Читаем как массив байт с прогрессом
+        const contentLength = +response.headers.get('content-length') || 1;
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedLength = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedLength += value.length;
+          const percent = 40 + Math.min(50, Math.round((receivedLength / contentLength) * 50));
+          updateProgress(percent);
+        }
+
+        const arrayBuffer = new Uint8Array(receivedLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          arrayBuffer.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        updateProgress(90);
+
+        // ——— Воспроизведение через Web Audio API ———
+        if (audioContext) {
+          try { audioContext.close(); } catch (e) {}
+        }
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const buffer = await audioContext.decodeAudioData(arrayBuffer.buffer);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+
+        // Останавливаем предыдущий, если был
+        if (currentSource) currentSource.stop();
+        currentSource = source;
+
+        // ▶️ Автоплей — разрешён после клика
+        await audioContext.resume();
+        source.start(0);
+
+        updateProgress(100);
+        status.innerHTML = `▶️ <strong>Играет:</strong> ${song.name}`;
+        btn.textContent = 'Остановить';
+        btn.disabled = false;
+        btn.onclick = stopPlayback;
+
+      } catch (err) {
+        console.error('Playback error:', err);
+        status.textContent = `❌ Не удалось проиграть: ${err.message || 'неизвестная ошибка'}`;
+        btn.disabled = false;
+        btn.textContent = 'Сыграть случайную песню';
+        btn.onclick = playRandomSong;
+        progressContainer.style.display = 'none';
+      }
+    }
+
+    function stopPlayback() {
+      if (audioContext) {
+        audioContext.close().catch(() => {});
+        audioContext = null;
+        currentSource = null;
+      }
+      document.getElementById('playBtn').textContent = 'Сыграть случайную песню';
+      document.getElementById('playBtn').onclick = playRandomSong;
+      document.getElementById('status').textContent = 'Остановлено';
+      document.getElementById('progressContainer').style.display = 'none';
+    }
+
+    // Назначаем обработчик
     document.getElementById('playBtn').addEventListener('click', playRandomSong);
   </script>
 </body>
