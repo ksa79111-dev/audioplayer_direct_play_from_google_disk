@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Случайная песня</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    button { font-size: 1.2rem; padding: 0.5rem 1rem; margin: 1rem; }
+    #player { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>🎧 Случайная песня</h1>
+  <button id="playBtn">Сыграть случайную песню</button>
+  <div id="player"></div>
+  <div id="status"></div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/ВАШ_WEB_APP_URL/exec'; // ← замените!
+    let songs = [];
+
+    async function loadSongs() {
+      try {
+        document.getElementById('status').textContent = 'Загрузка списка...';
+        const res = await fetch(SCRIPT_URL);
+        songs = await res.json();
+        document.getElementById('status').textContent = `Загружено ${songs.length} песен.`;
+      } catch (err) {
+        document.getElementById('status').textContent = '❌ Ошибка загрузки: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    function playRandomSong() {
+      if (songs.length === 0) {
+        alert('Список песен пуст. Подождите загрузки.');
+        return;
+      }
+
+      const randomSong = songs[Math.floor(Math.random() * songs.length)];
+      const url = `https://drive.google.com/uc?export=download&id=${randomSong.id}`;
+
+      const audio = new Audio(url);
+      audio.controls = true;
+      audio.style.width = '80%';
+      audio.onerror = () => {
+        alert(`Не удалось загрузить "${randomSong.name}". Убедитесь, что файл доступен и не слишком большой.`);
+      };
+
+      const playerDiv = document.getElementById('player');
+      playerDiv.innerHTML = '';
+      playerDiv.appendChild(audio);
+      
+      document.getElementById('status').textContent = `Играет: ${randomSong.name}`;
+      audio.play().catch(e => {
+        console.warn('Autoplay blocked:', e);
+        document.getElementById('status').textContent += ' (нажмите на аудиоплеер для воспроизведения)';
+      });
+    }
+
+    document.getElementById('playBtn').addEventListener('click', playRandomSong);
+    loadSongs();
+  </script>
+</body>
+</html>
