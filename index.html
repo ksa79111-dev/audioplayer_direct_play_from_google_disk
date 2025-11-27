@@ -249,9 +249,9 @@
       return `${m}:${s}`;
     }
     
-    // Обновление прогресс-бара и времени
+    // Обновление прогресс-бара
     player.addEventListener('timeupdate', () => {
-      if (player.duration) {
+      if (player.duration && !isNaN(player.duration)) {
         const percent = (player.currentTime / player.duration) * 100;
         progressInput.value = percent;
         currentTimeEl.textContent = formatTime(player.currentTime);
@@ -260,29 +260,31 @@
     
     player.addEventListener('loadedmetadata', () => {
       durationEl.textContent = formatTime(player.duration || 0);
-      progressInput.max = player.duration || 100;
+      // max остаётся 100 — потому что это %, а не секунды
     });
     
+    // ✅ Главное: перемотка по клику/перетаскиванию
+    progressInput.addEventListener('input', () => {
+      if (player.duration && !isNaN(player.duration)) {
+        const percent = parseFloat(progressInput.value);
+        player.currentTime = (percent / 100) * player.duration;
+      }
+    });
+    
+    // Необязательно, но улучшает UX:
+    progressInput.addEventListener('mousedown', () => {
+      player.pause(); // пауза при начале промотки
+    });
+    progressInput.addEventListener('mouseup', () => {
+      if (isPlaying) player.play();
+    });
+    
+    // При окончании — сброс
     player.addEventListener('ended', () => {
       progressInput.value = 0;
       currentTimeEl.textContent = '0:00';
       if (loopCheck.checked) playNextSong();
       else togglePlayback();
-    });
-    
-    // Промотка при перетаскивании ползунка
-    progressInput.addEventListener('input', () => {
-      const percent = progressInput.value;
-      const time = (percent / 100) * (player.duration || 0);
-      player.currentTime = time;
-    });
-    
-    // Плавное обновление при drag (не только по окончании)
-    progressInput.addEventListener('mousedown', () => {
-      player.pause(); // пауза при начале промотки (по желанию)
-    });
-    progressInput.addEventListener('mouseup', () => {
-      if (isPlaying) player.play();
     });
 
     // Обработчики
