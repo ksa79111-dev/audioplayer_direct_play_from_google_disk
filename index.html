@@ -64,6 +64,22 @@
     }
     .song-item:hover { background: #e0f0ff; }
     .song-item.playing { background: #d0e7ff; font-weight: bold; }
+    .progress-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4285f4;
+      cursor: pointer;
+    }
+    .progress-container input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4285f4;
+      border: none;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -87,6 +103,15 @@
   <div class="status" id="status">Введите ID папки и нажмите «Загрузить»</div>
 
   <div class="song-list" id="songList"></div>
+  <!-- Прогресс-бар -->
+  <div class="progress-container" style="max-width:500px; margin:1rem auto; padding:0 1rem;">
+    <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#666;">
+      <span id="currentTime">0:00</span>
+      <span id="duration">0:00</span>
+    </div>
+    <input type="range" id="progress" value="0" min="0" max="100" 
+           style="width:100%; margin:0.5rem 0; height:6px; -webkit-appearance:none; background:#eee; border-radius:3px;" />
+  </div>
 
   <audio id="player" style="display:none"></audio>
 
@@ -105,6 +130,9 @@
     const songListEl = document.getElementById('songList');
     const shuffleCheck = document.getElementById('shuffle');
     const loopCheck = document.getElementById('loop');
+    const progressInput = document.getElementById('progress');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
 
     // Загрузка списка
     async function loadSongs() {
@@ -213,6 +241,48 @@
         playSong(index);
       }
     }
+    // Форматирование времени: секунды → MM:SS
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+    
+    // Обновление прогресс-бара и времени
+    player.addEventListener('timeupdate', () => {
+      if (player.duration) {
+        const percent = (player.currentTime / player.duration) * 100;
+        progressInput.value = percent;
+        currentTimeEl.textContent = formatTime(player.currentTime);
+      }
+    });
+    
+    player.addEventListener('loadedmetadata', () => {
+      durationEl.textContent = formatTime(player.duration || 0);
+      progressInput.max = player.duration || 100;
+    });
+    
+    player.addEventListener('ended', () => {
+      progressInput.value = 0;
+      currentTimeEl.textContent = '0:00';
+      if (loopCheck.checked) playNextSong();
+      else togglePlayback();
+    });
+    
+    // Промотка при перетаскивании ползунка
+    progressInput.addEventListener('input', () => {
+      const percent = progressInput.value;
+      const time = (percent / 100) * (player.duration || 0);
+      player.currentTime = time;
+    });
+    
+    // Плавное обновление при drag (не только по окончании)
+    progressInput.addEventListener('mousedown', () => {
+      player.pause(); // пауза при начале промотки (по желанию)
+    });
+    progressInput.addEventListener('mouseup', () => {
+      if (isPlaying) player.play();
+    });
 
     // Обработчики
     player.onended = () => {
