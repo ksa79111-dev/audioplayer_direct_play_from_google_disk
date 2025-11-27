@@ -287,6 +287,26 @@
       else togglePlayback();
     });
 
+    // Добавьте после других addEventListener:
+    player.addEventListener('seeking', () => {
+      // Можно показать "перемотка..." — не обязательно
+    });
+    
+    player.addEventListener('seeked', () => {
+      if (isPlaying) player.play(); // продолжить после перемотки
+    });
+    
+    // Улучшаем input для надёжности:
+    progressInput.addEventListener('input', () => {
+      const percent = parseFloat(progressInput.value);
+      if (player.duration && !isNaN(player.duration) && isFinite(player.duration)) {
+        const time = (percent / 100) * player.duration;
+        if (!isNaN(time) && isFinite(time)) {
+          player.currentTime = time;
+        }
+      }
+    });
+
     // Обработчики
     player.onended = () => {
       if (loopCheck.checked) playNextSong();
